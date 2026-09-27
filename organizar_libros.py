@@ -65,7 +65,7 @@ ESPECIALIDADES = {
                 "medicina de bolsillo", "sabatine", "clinical advisor", "ferri",
                 "diagnostico clinico", "green book", "diagnostico diferencial",
                 "biblia medico", "padecimientos", "huppert", "mnemonics",
-                "diccionario medico", "rotaciones clinicas", "soap "]),
+                "diccionario medico"]),
     "Medicina de Familia": dict(
         carpeta=r"familia|primaria|mfyc", general=True,
         claves=["atencion primaria", "medicina de familia", "medicina familiar",
@@ -190,16 +190,25 @@ ESPECIALIDADES = {
                 "gases "]),
     "Semiología y Exploración": dict(
         carpeta=r"semiol|exploraci", general=True,
-        claves=["semiolog", "exploracion", "anamnesis", "argente", "suros", "bates",
+        claves=["semiolog", "exploracion", "argente", "suros", "bates",
                 "propedeut", "fustinoni", "signos y sintomas", "signos vitales",
                 "medicina clinica", "clinica practica"]),
+    "Anamnesis": dict(
+        carpeta=r"anamnesis|historia clinica",
+        claves=["anamnesis", "historia clinica", "entrevista clinica", "soap ",
+                "rotaciones clinicas"]),
+    "Anatomía": dict(
+        carpeta=r"anatom",
+        claves=["anatomi", "netter", "histolog", "embriolog", "estructura y funcion",
+                "sistema oseo", "dubium"]),
+    "Fisiopatología": dict(
+        carpeta=r"fisiopat|fisiolog",
+        claves=["fisiolog", "fisiopatolog", "guyton", "berne", "pathophysiology",
+                "porth", "mcphee", "robbins"]),
     "Ciencias Básicas": dict(
-        carpeta=r"basica|anatom|fisiol", general=True,
-        claves=["anatomi", "fisiolog", "guyton", "netter", "histolog", "bioquim",
-                "embriolog", "robbins", "fisiopatolog", "pathophysiology", "porth",
-                "genetica", "biologia molecular", "inmunolog", "fisicoquim",
-                "organic chemistry", "estructura y funcion", "berne", "harper",
-                "mcphee"]),
+        carpeta=r"ciencias basicas|bioquim",
+        claves=["bioquim", "harper", "feduchi", "genetica", "biologia molecular",
+                "inmunolog", "fisicoquim", "organic chemistry", "quimica organica"]),
     "Investigación y Estadística": dict(
         carpeta=r"investig|estadist",
         claves=["estadistic", "bioestad", "biostatistic", "investigacion",
@@ -630,6 +639,7 @@ def clave_titulo(titulo):
     palabras = normalizar(titulo).split()
     return frozenset(p for p in palabras
                      if p not in MINUSCULAS and not p.isdigit() and len(p) > 1
+                     and not re.fullmatch(r"[ivx]{1,4}", p)
                      and p not in {"ed", "edicion", "comprimido", "copia"})
 
 
@@ -917,13 +927,14 @@ def escanear(args):
         return k
 
     def mismo_libro(a, b, na, nb):
-        cifras = lambda n: re.findall(r"\d+", re.sub(r"^\d+\s", "", n))
+        cifras = lambda n: re.findall(r"\b(?:\d+|[ivx]{1,4})\b", re.sub(r"^\d+\s", "", n))
         if a == b and cifras(na) != cifras(nb):
             return False                      # "Farma Infecciosas 2" / "... 3": serie
         corto, largo = sorted((a, b), key=len)
         if not corto <= largo:
             return False
-        return len(corto - GENERICAS) >= 2 or (corto == largo and len(corto) >= 2)
+        return len(corto - GENERICAS) >= 2 or (
+            corto == largo and len(corto) >= 2 and len(corto - GENERICAS) >= 1)
 
     for x in range(len(items)):
         for y in range(x + 1, len(items)):
@@ -991,11 +1002,15 @@ def escanear(args):
              " y copias de NotebookLM)")
     L.append("-" * 70)
     for g in sorted(posibles, key=lambda g: info(g[0][0])["nombre"]):
-        eds = [i["edicion"] for _, i in g if i["edicion"]]
         for p, i in sorted(g, key=lambda x: -(x[1]["edicion"] or 0)):
             extra = ""
-            if eds and i["edicion"] and i["edicion"] < max(eds):
-                extra = f"   ← edición anterior (tienes la {max(eds)}ª)"
+            nuevas_ed = [j["edicion"] for q, j in g if j["edicion"] and i["edicion"]
+                         and j["edicion"] > i["edicion"]
+                         and (i["clave"] == j["clave"] or len(
+                             min(i["clave"], j["clave"], key=len) - GENERICAS) >= 3)
+                         and (i["clave"] <= j["clave"] or j["clave"] <= i["clave"])]
+            if nuevas_ed:
+                extra = f"   ← edición anterior (tienes la {max(nuevas_ed)}ª)"
             L.append(f"   {rel(p)}{extra}")
         L.append("")
     L.append(f"3) POSIBLEMENTE MAL CLASIFICADOS: {len(mal)}")
